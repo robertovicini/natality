@@ -14,6 +14,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 BASE_URL = "https://data.nber.org/nvss/natality/dta/2024"
 
 
+# scarica i dataset solo se non sono stati scaricati in precedenza e lo fa a chunk, trattandosi di file pesanti
 def get_dataset_path(filename):
 	DATA_DIR.mkdir(exist_ok=True)
 	data_path = DATA_DIR / filename
@@ -42,15 +43,15 @@ def get_dataset_path(filename):
 					bytes_downloaded += len(chunk)
 					if bytes_downloaded >= next_report:
 						elapsed = monotonic() - started_at
-						rate_mbps = bytes_downloaded / elapsed / (1024 * 1024)
+						rate_mbps = bytes_downloaded / elapsed / (8*1024 * 1024)
 						if total_bytes:
 							print(f"  {bytes_downloaded / total_bytes:.0%} scaricato ({rate_mbps:.1f} MB/s)")
 						else:
-							print(f"  {bytes_downloaded / (1024 * 1024):.0f} MB scaricati ({rate_mbps:.1f} MB/s)")
+							print(f"  {bytes_downloaded / (8*1024 * 1024):.0f} MB scaricati ({rate_mbps:.1f} MB/s)")
 						next_report += 25 * 1024 * 1024
 	temp_path.replace(data_path)
 	elapsed = monotonic() - started_at
-	print(f"Download completato in {elapsed:.1f} s ({bytes_downloaded / (1024 * 1024):.1f} MB)")
+	print(f"Download completato in {elapsed:.1f} s ({bytes_downloaded / (8*1024 * 1024):.1f} MB)")
 	return data_path
 
 
