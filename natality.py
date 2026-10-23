@@ -94,8 +94,6 @@ variable_labels_table = pd.DataFrame(
 	first_year_us_labels["variable_labels"].items(),
 	columns=["Variabile", "Label"],
 )
-print(f"\nLabel delle variabili {YEARS[0]} ps:")
-print(variable_labels_table.to_string(index=False))
 labels_csv_path = DATA_DIR / f"variable_labels_{YEARS[0]}_ps.csv"
 variable_labels_table.to_csv(labels_csv_path, index=False)
 print(f"\nLabel salvate in: {labels_csv_path}")
@@ -103,6 +101,10 @@ print(f"\nLabel salvate in: {labels_csv_path}")
 target_groups = {
 	"target_morbilita_materna": ["mm_mtr", "mm_plac", "mm_rupt", "mm_uhyst", "mm_aicu"],
 	"target_complicazioni_neonatali": ["ab_aven1", "ab_aven6", "ab_nicu", "ab_surf", "ab_anti", "ab_seiz"],
+	"target_anomalia_congenita": [
+		"ca_anen", "ca_mnsb", "ca_cchd", "ca_cdh", "ca_omph", "ca_gast",
+		"ca_limb", "ca_cleft", "ca_clpal", "ca_down", "ca_disor", "ca_hypo",
+	],
 }
 
 candidate_columns = nat.columns[:118].tolist()
@@ -125,6 +127,8 @@ input_columns = [
 	and column != "natality_year"
 	and column != "no_risks"
 ]
+print(f"\nLabel delle variabili {YEARS[0]} ps:")
+print(input_columns)
 print(f"Feature selezionate: {len(input_columns)} su {len(candidate_columns)} candidate")
 print(f"Reporting flag escluse: {reporting_flag_columns}")
 print(f"Variabili target escluse dalle feature: {sorted(target_source_columns & set(candidate_columns))}")
@@ -135,7 +139,7 @@ def to_binary_event(series):
 	labels = series.astype("string").str.strip().str.lower()
 	positive = labels.str.contains(r"\b(?:yes|true|confirmed)\b", na=False)
 	positive |= labels.str.match(r"^[yc]\b", na=False)
-	negative = labels.str.contains(r"\b(no|false)\b", na=False)
+	negative = labels.str.contains(r"\b(?:no|false)\b", na=False)
 	negative |= labels.str.match(r"^n\b", na=False)
 	result = pd.Series(np.nan, index=series.index, dtype="float64")
 	result.loc[positive] = 1
