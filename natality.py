@@ -218,26 +218,41 @@ for target_name in target_data.columns:
 			("bilanciato", negative_count / positive_count),
 		)
 		for class_weight, positive_weight in class_weight_options:
+			fold_preprocessor = clone(preprocessor)
+			X_train_processed = fold_preprocessor.fit_transform(X_train, y_train)
+			X_valid_processed = fold_preprocessor.transform(X_valid)
+			X_fold_test_processed = fold_preprocessor.transform(X_fold_test)
+			xgboost_model = XGBClassifier(
+				n_estimators=2000,
+				max_depth=6,
+				learning_rate=0.05,
+				subsample=0.8,
+				colsample_bytree=0.8,
+				scale_pos_weight=positive_weight,
+				eval_metric="aucpr",
+				early_stopping_rounds=50,
+				tree_method="hist",
+				n_jobs=-1,
+				 random_state=42,
+			)
+			xgboost_model.fit(
+				X_train_processed,
+				y_train,
+				eval_set=[(X_valid_processed, y_valid)],
+				verbose=False,
+			)
 			model = Pipeline([
-				("preprocessor", clone(preprocessor)),
-				("xgboost", XGBClassifier(
-					n_estimators=300,
-					max_depth=6,
-					learning_rate=0.05,
-					subsample=0.8,
-					colsample_bytree=0.8,
-					scale_pos_weight=positive_weight,
-					eval_metric="logloss",
-					tree_method="hist",
-					n_jobs=-1,
-					random_state=42,
-				)),
+				("preprocessor", fold_preprocessor),
+				("xgboost", xgboost_model),
 			])
-			model.fit(X_train, y_train)
 			models_by_weight[class_weight].append(model)
+			print(
+				f"    {class_weight}: early stop al round "
+				f"{xgboost_model.best_iteration + 1}"
+			)
 
-			feature_names = model.named_steps["preprocessor"].get_feature_names_out()
-			feature_importances = model.named_steps["xgboost"].feature_importances_
+			feature_names = fold_preprocessor.get_feature_names_out()
+			feature_importances = xgboost_model.feature_importances_
 			for feature, importance in zip(feature_names, feature_importances):
 				importance_totals[class_weight][feature] = (
 					importance_totals[class_weight].get(feature, 0.0) + importance
@@ -246,7 +261,7 @@ for target_name in target_data.columns:
 					importance_counts[class_weight].get(feature, 0) + 1
 				)
 
-			valid_probabilities = model.predict_proba(X_valid)[:, 1]
+			valid_probabilities = xgboost_model.predict_proba(X_valid_processed)[:, 1]
 			precision_values, recall_values, thresholds = precision_recall_curve(
 				y_valid, valid_probabilities
 			)
@@ -255,7 +270,7 @@ for target_name in target_data.columns:
 				/ (precision_values[:-1] + recall_values[:-1] + 1e-12)
 			)
 			best_threshold = thresholds[int(np.argmax(validation_f1))]
-			test_probabilities = model.predict_proba(X_fold_test)[:, 1]
+			test_probabilities = xgboost_model.predict_proba(X_fold_test_processed)[:, 1]
 			for threshold_name, threshold in (
 				("default 0.50", 0.5),
 				("soglia da validazione", best_threshold),
